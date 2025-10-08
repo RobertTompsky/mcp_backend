@@ -1,0 +1,30 @@
+{
+"compilerOptions": {
+    "moduleDetection": "force",
+    "target": "ESNext",
+    "module": "preserve",
+    "esModuleInterop": true,
+    "strict": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx",
+    "baseUrl": "./",
+    "paths": {
+      "@llm/*": [
+        "src/llm/*"
+      ],
+      "@server/*": [
+        "src/server/*"
+      ],
+      "@utils/*": [
+        "src/utils/*"
+      ]
+    },
+    "outDir": "./dist"
+  },
+  "exclude": ["node_modules"]
+}
