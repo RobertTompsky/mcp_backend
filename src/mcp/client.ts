@@ -29,8 +29,8 @@ export async function runAgent(query: string, previousResponseId?: string): Prom
 
     const mcpClient = new McpClient(
         {
-            name: 'demo-client',
-            version: '1.0.0'
+            name: 'demo_client',
+            version: '2.2.8'
         },
         {}
     )

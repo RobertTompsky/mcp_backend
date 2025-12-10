@@ -1,25 +1,24 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { cryptoInputShape, newsSearchInputShape } from "./schemas";
+import { z } from "zod";
 import 'dotenv/config'
+import { log } from "@utils/logger";
+import { CryptoToolShape, WebSearchToolShape } from "./schemas";
 
 const mcpServer = new McpServer({
-    name: 'demo_server',
-    version: '1.0.0',
-    capabilities: {
-        resources: {},
-        tools: {},
-    },
-})
+    name: "demo_server",
+    version: "2.2.8",
+});
 
 mcpServer.registerTool(
     'get_cryptoInfo',
     {
         title: 'get_cryptoInfo',
         description: 'Get the current price and market metrics of a specific cryptocurrency',
-        inputSchema: cryptoInputShape
+        inputSchema: CryptoToolShape
     },
     async ({ ticker, name, quantity }) => {
+
         try {
             const id = `${ticker.toLowerCase()}-${name.toLowerCase()}`;
             const url = `https://api.coinpaprika.com/v1/tickers/${id}`
@@ -44,7 +43,6 @@ mcpServer.registerTool(
                     };
                 }
             }
-
             const {
                 rank,
                 total_supply,
@@ -70,9 +68,7 @@ mcpServer.registerTool(
             const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
             const formatPercent = (value: number) => `${value.toFixed(2)}%`;
 
-            const priceText = quantity === 1
-                ? `Current price: ${formatCurrency(price)}`
-                : `Total price for ${quantity} ${ticker}: ${formatCurrency(totalPrice)}`;
+            const priceText = quantity === 1 ? `Current price: ${formatCurrency(price)}` : `Total price for ${quantity} ${ticker}: ${formatCurrency(totalPrice)}`;
 
             const statsText = [
                 `Rank: ${rank}`,
@@ -88,29 +84,28 @@ mcpServer.registerTool(
                 `Beta value: ${beta_value.toFixed(2)}`
             ];
 
-            const fullInfo = `
-            ${name.toUpperCase()} (${ticker})
-            ${priceText}
-            ${statsText.join('\n')}
-        `.trim();
+            const fullInfo = [
+                `=== ${name.toUpperCase()} (${ticker}) ===`,
+                priceText,
+                ...statsText
+            ].map(s => s.trim()).join("\n");
 
             return {
                 content: [
                     {
-                        type: 'text',
-                        text: fullInfo
-                    }
-                ]
+                        type: "text",
+                        text: fullInfo,
+                    },
+                ],
             }
         } catch (error) {
             return {
                 content: [
                     {
-                        type: 'text',
-                        text: `Failed to retrieve crypto info: ${error}`
-                    }
+                        type: "text",
+                        text: "Failed to retrieve cryptocurrency data",
+                    },
                 ],
-                isError: true
             }
         }
     }
@@ -123,7 +118,7 @@ mcpServer.registerTool(
         description: 
             `Search recent news on the web. 
             **DO NOT USE IT** when you are asked about crypto token price or market metrics - these metrics should be queried using a different tool designed for that purpose.`,
-        inputSchema: newsSearchInputShape
+        inputSchema: WebSearchToolShape
     },
     async ({ query }) => {
         const apiKey = process.env.TAVILY_API_KEY
@@ -206,13 +201,23 @@ mcpServer.registerTool(
     }
 )
 
-const transport = new StdioServerTransport()
+const transport = new StdioServerTransport();
+await mcpServer.connect(transport);
+log.error("MCP Server started (stdio).");
 
-await mcpServer.connect(transport)
+function shutdown(reason: string, exitCode = 0) {
+    log.error(`Shutting down MCP server: ${reason}`);
 
-console.error('[MCP] crypto server started (stdio).')
+    mcpServer.close().finally(() => {
+        process.exit(exitCode);
+    });
+}
 
-process.stdin.once('close', () => {
-    console.error('[MCP] stdio closed → shutting down.')
-    mcpServer.close().finally(() => process.exit(0))
-})
+// stdin closed
+process.stdin.once("close", () => shutdown("stdio closed"));
+
+// CTRL+C
+process.once("SIGINT", () => shutdown("SIGINT", 130));
+
+// Docker stop / systemctl
+process.once("SIGTERM", () => shutdown("SIGTERM", 143));

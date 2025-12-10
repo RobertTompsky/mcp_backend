@@ -1,6 +1,6 @@
-import z, { type ZodRawShape } from "zod";
+import z from "zod";
 
-export const cryptoInputShape = {
+export const CryptoToolShape = {
     ticker: z
         .string()
         .describe(
@@ -19,15 +19,15 @@ export const cryptoInputShape = {
         .describe(
             'The amount of cryptocurrency. Defaults to 1 if not specified'
         ),
-} satisfies ZodRawShape
-
-export const cryptoInputSchema = z.object(cryptoInputShape)
-
-export const newsSearchInputShape = {
-    query: z
-        .string()
-        .min(1)
-        .describe("News/search query, e.g. 'bitcoin spot ETF flows'")
 }
 
-export const newsSearchSchema = z.object(newsSearchInputShape)
+export const cryptoInputSchema = z.object(CryptoToolShape)
+
+export const WebSearchToolShape = {
+  query: z
+    .string()
+    .min(1)
+    .describe("News/search query, e.g. 'bitcoin spot ETF flows'"),
+}
+
+export const newsSearchSchema = z.object(WebSearchToolShape)
