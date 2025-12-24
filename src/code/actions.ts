@@ -1,6 +1,7 @@
 import { z } from "zod";
 import ts from "typescript";
 import vm from "vm";
+import { log } from "@utils/logger";
 
 export type SandboxAction<Name extends string = string> = {
     name: Name;
@@ -61,7 +62,7 @@ export function createApi(actions: SandboxAction[]) {
     > = {
         description: string;
         schema?: ActionSchema<S>;
-        call?: (args: z.infer<ActionSchema<S>>) => Promise<string>;
+        [FUNC_NAME]?: (args: z.infer<ActionSchema<S>>) => Promise<string>;
         template?: string;
     };
 
@@ -74,7 +75,26 @@ export function createApi(actions: SandboxAction[]) {
             api[a.name] = {
                 description: a.description,
                 schema: a.schema,
-                call: a.call,
+                call: async (rawArgs: unknown) => {
+                    try {
+                        const parsed = a.schema.parse(rawArgs);
+                        log.info(
+                            `Action validated: ${a.name}\n`,
+                            JSON.stringify(parsed, null, 2)
+                        );
+                        return await a.call(parsed);
+                    } catch (e) {
+                        if (e instanceof z.ZodError) {
+                            return [
+                                "[SANDBOX_FEEDBACK] Invalid arguments for action:",
+                                e.issues.map(err =>
+                                    `- ${err.path.join(".")}: ${err.message}`
+                                ).join("\n")
+                            ].join("\n");
+                        }
+                        throw e;
+                    }
+                },
                 template: [
                     `Inside the TypeScript sandbox, always call this tool via global \`${SDK_NAME}\` object.`,
                     "",
@@ -111,13 +131,18 @@ export function createApi(actions: SandboxAction[]) {
         }
     }
 
-    async function executeCode(code: string, sandboxTimeout: number, toolName: string): Promise<{ stdout: string }> {
+    async function executeCode(
+        code: string,
+        sandboxTimeout: number,
+        toolName: string
+    ): Promise<{ stdout: string }> {
         const action = actions.find(a => a.name === toolName);
         if (!action) throw Error('Invalid toolName');
 
         const apiEntry = api[toolName];
 
         if (isActionDef(actions.find((a) => a.name === toolName)!)) {
+
             if (!code.includes(requiredCallPattern(toolName))) {
                 return {
                     stdout: [
@@ -179,7 +204,9 @@ export function createApi(actions: SandboxAction[]) {
 
         if (logs.length === 0) logs.push("[SANDBOX_FEEDBACK] MUST print the final result using console.log(...).");
 
-        return { stdout: logs.map(line => line.trimStart()).join("\n") };
+        return {
+            stdout: logs.map(line => line.trimStart()).join("\n")
+        };
     }
 
     return { api, executeCode };

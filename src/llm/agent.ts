@@ -10,8 +10,6 @@ import { type SandboxAction, createApi } from "@code/actions";
 import { log } from "@utils/logger";
 import { CodeGenSchema } from "@code/schemas";
 
-type Input = z.infer<typeof InputSchema>
-
 export type Config = {
     model: string;
     actions?: SandboxAction[];
@@ -21,6 +19,8 @@ export type Config = {
         sandboxTimeout?: number;
     };
 };
+type Input = z.infer<typeof InputSchema>
+
 export function setup(config: Config) {
     const {
         model,
@@ -40,7 +40,38 @@ export function setup(config: Config) {
         maxRetries: 0
     })
 
-    const { api, executeCode } = createApi(actions!)
+    const { api, executeCode } = createApi(actions)
+
+    log.section("TOOLS");
+    const openaiTools: FunctionTool[] = Object.entries(api).map(([name, {
+        template,
+        description
+    }]) => {
+        const annotatedSchema = z.object({
+            ...CodeGenSchema.shape,
+            code: CodeGenSchema.shape.code.describe([
+                template,
+                "NO imports, NO fetch, NO network."
+            ].join("\n"))
+        });
+
+        return {
+            type: "function",
+            name,
+            description: description.trim(),
+            parameters: z.toJSONSchema(annotatedSchema),
+            strict: true,
+        }
+    });
+    log.json('Registered tools:', Object.fromEntries(
+        openaiTools.map(t => [
+            t.name,
+            {
+                description: t.description ?? '',
+                parameters: t.parameters
+            }
+        ])
+    ))
 
     async function text(payload: Input) {
         const {
@@ -65,37 +96,6 @@ export function setup(config: Config) {
             }
         ];
         log.json("Initial input", initialInput);
-
-        log.section("TOOLS");
-        const openaiTools: FunctionTool[] = Object.entries(api).map(([name, {
-            template,
-            description
-        }]) => {
-            const annotatedSchema = z.object({
-                ...CodeGenSchema.shape,
-                code: CodeGenSchema.shape.code.describe([
-                    template,
-                    "NO imports, NO fetch, NO network."
-                ].join("\n"))
-            });
-
-            return {
-                type: "function",
-                name,
-                description: description.trim(),
-                parameters: z.toJSONSchema(annotatedSchema),
-                strict: true,
-            }
-        });
-        log.json('Registered tools:', Object.fromEntries(
-            openaiTools.map(t => [
-                t.name,
-                {
-                    description: t.description ?? '',
-                    parameters: t.parameters
-                }
-            ])
-        ))
 
         let result = await openai.responses.create({
             model,

@@ -47,58 +47,27 @@ const agent = setup({
   actions: [
     {
       name: 'calculate',
-      description: 'Write simple code to calculate numbers.'
+      description: 'Write simple func that calculates numbers'
     },
     // {
-    //   name: "useMcpClient",
+    //   name: 'useMcpClient',
     //   description: [
-    //     "Use MCP client inside the sandbox to discover and call MCP tools directly from TypeScript code.", 
-    //     "Allowed methods:",
-    //     "- .listTools()",
-    //     "- .callTool({ name: string, arguments: Record<string, unknown> })"
+    //     "Use MCP client inside the sandbox to discover and call MCP tools directly from TypeScript code.",
+    //     "Methods:",
+    //     "- client.listTools()",
+    //     "- client.callTool({ name, arguments })"
     //   ].join("\n"),
     //   globals: {
-    //     client: mcpClient,
-    //   },
+    //     client: mcpClient
+    //   }
     // },
     def({
-      name: "createPlan",
+      name: "list_McpTools",
       description: [
-        "Generate a clear, structured plan for solving the user’s request.",
-        "",
-        "First, briefly outline your internal reasoning about how to approach the task.",
-        "Then, turn this reasoning into an ordered list of small, meaningful subtasks.",
-        "",
-        "Both reasoning and subtasks must be written in natural language only — no code.",
-        "The plan should reflect your own understanding of the problem and how to solve it.",
-        "Choose whatever steps are logically appropriate for the task; do not follow a fixed template.",
-      ].join("\n"),
-      schema: z.object({
-        thinking: z
-          .string()
-          .min(1)
-          .describe(
-            "A short, free-form description of your reasoning and high-level approach to the user’s request."
-          ),
-        todos: z
-          .array(
-            z
-              .string()
-              .min(1)
-              .describe("One concrete, meaningful subtask that moves the solution forward.")
-          )
-          .min(1)
-          .describe("An ordered list of subtasks needed to solve the request."),
-      }),
-      call: async () => 'Follow generated plan step by step and call other tools if needed. **DO NOT** ask user to continue.',
-    }),
-    def({
-      name: "listMcpTools",
-      description: [
-        "Return a list of available tools from MCP server including names, descriptions and input schemas.",
+        "Return a list of available tools via MCP client including names, descriptions and input schemas.",
       ].join("\n"),
       call: async () => {
-        const { tools } = await mcpClient.listTools();
+        const { tools } = await mcpClient.listTools()
 
         return JSON.stringify(
           tools.map(t => ({
@@ -108,46 +77,39 @@ const agent = setup({
           })),
           null,
           2
-        );
+        )
       }
     }),
     def({
-      name: "callMcpTool",
+      name: "call_McpTool",
       description: [
-        "Call an existing MCP tool by name.",
-        "",
-        "IMPORTANT RULES:",
-        "- You MUST NOT implement your own logic inside code when using this tool.",
-        "- You MUST ONLY call tools that exist on the MCP server.",
-        "- Never invent tool names.",
+        "Call an existing MCP tool by name via client.",
       ].join("\n"),
       schema: z.object({
         name: z.string(),
         args: z.record(z.string(), z.unknown()).optional(),
       }),
-      call: async ({ name, args = {} }) => {
+      call: async ({ name, args }) => {
         const out = await mcpClient.callTool({
           name,
           arguments: args
-        }) as CallToolResult;
+        }) as CallToolResult
 
         const text = out.content
           .map(el => el.type === "text" ? el.text : JSON.stringify(el))
           .join("\n")
           .trim();
 
-        return text;
+        return text
       }
     })
   ],
   opts: {
     toolRounds: 3,
-    sandboxTimeout: 15_000,
     prompt: [
-      "**Always** start with calling the `createPlan` tool for each new user task.",
       "For all external data you **must** use MCP client inside sandbox to discover tools and call the appropriate one",
       "Never invent tool names."
-    ].join("\n")
+    ].join('\n')
   }
 })
 

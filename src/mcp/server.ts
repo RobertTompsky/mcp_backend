@@ -1,6 +1,5 @@
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
 import 'dotenv/config'
 import { log } from "@utils/logger";
 import { CryptoToolShape, WebSearchToolShape } from "./schemas";
@@ -127,7 +126,7 @@ mcpServer.registerTool(
             query,
             topic: 'news',
             search_depth: 'basic',
-            max_results: 2,
+            max_results: 6,
             days: 1,
             include_answer: true
         }
